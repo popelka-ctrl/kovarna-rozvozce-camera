@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <title>Kovárna – QR skener</title>
+  <style>
+    :root{font-family:Arial,sans-serif;background:#000;color:#fff}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+    body{display:flex;flex-direction:column}
+    .top{height:72px;min-height:72px;padding:12px 16px;background:#241b1b;border-bottom:1px solid #4e3838;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .title{font-size:22px;font-weight:900;line-height:1.05}
+    .sub{font-size:13px;font-weight:800;color:#ff6868;margin-top:3px}
+    .close{width:auto;min-width:78px;height:48px;border:0;border-radius:12px;background:#4b3a34;color:#fff;font-size:18px;font-weight:900}
+    .stage{position:relative;flex:1;min-height:0;background:#000}
+    video{width:100%;height:100%;object-fit:cover;background:#000}
+    .shade{position:absolute;inset:0;pointer-events:none}
+    .target{position:absolute;left:50%;top:50%;width:min(76vw,420px);aspect-ratio:1;transform:translate(-50%,-50%);border:5px solid #fff;border-radius:24px;box-shadow:0 0 0 9999px #0005}
+    .status{position:absolute;left:14px;right:14px;bottom:18px;z-index:2;background:#171313e8;border:1px solid #5d4740;border-radius:14px;padding:14px 16px;font-size:18px;font-weight:800;text-align:center}
+    .ok{background:#214f31e8}.err{background:#6f2626e8}
+    .hidden{display:none!important}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div><div class="title">KOVÁRNA • QR SKENER</div><div class="sub">ROZVOZCE</div></div>
+    <button class="close" onclick="closeScanner()">ZAVŘÍT</button>
+  </header>
+  <main class="stage">
+    <video id="video" playsinline muted></video>
+    <div class="shade"><div class="target"></div></div>
+    <div id="status" class="status">Spouštím fotoaparát…</div>
+  </main>
+  <script src="jsqr.js"></script>
+  <script>
+    const EXPECTED_OPENER_ORIGIN='https://script.google.com';
+    const params=new URLSearchParams(location.search);
+    const NONCE=String(params.get('nonce')||'');
+    let stream=null, active=true, timer=null, detector=null;
+    const video=document.getElementById('video');
+    const status=document.getElementById('status');
+
+    function setStatus(text,kind){
+      status.textContent=text;
+      status.className='status'+(kind?' '+kind:'');
+    }
+    function stopCamera(){
+      active=false;
+      if(timer)clearTimeout(timer);
+      timer=null;
+      if(stream)stream.getTracks().forEach(t=>t.stop());
+      stream=null;
+    }
+    function closeScanner(){
+      stopCamera();
+      window.close();
+    }
+    function sendResult(raw){
+      if(!active)return;
+      stopCamera();
+      setStatus('QR načteno. Ověřuji poukaz…','ok');
+      try{
+        if(window.opener){
+          window.opener.postMessage({
+            type:'KOVARNA_DELIVERY_QR',
+            nonce:NONCE,
+            raw:String(raw||'')
+          },'*');
+        }
+      }catch(_){}
+      setTimeout(()=>window.close(),350);
+    }
+
+    async function start(){
+      if(!NONCE){setStatus('Chybí bezpečnostní parametr skeneru.','err');return;}
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+        setStatus('Tento prohlížeč nepovoluje živou kameru.','err');return;
+      }
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({
+          video:{
+            facingMode:{ideal:'environment'},
+            width:{ideal:1920},
+            height:{ideal:1080}
+          },
+          audio:false
+        });
+        video.srcObject=stream;
+        await video.play();
+        if(typeof BarcodeDetector!=='undefined'){
+          try{detector=new BarcodeDetector({formats:['qr_code']});}catch(_){detector=null;}
+        }
+        setStatus('Namiřte fotoaparát na QR kód.');
+        active=true;
+        scanLoop();
+      }catch(err){
+        const name=String(err&&err.name||'');
+        const msg=name==='NotAllowedError'
+          ? 'Povolte tomuto webu přístup k fotoaparátu.'
+          : 'Fotoaparát se nepodařilo spustit.';
+        setStatus(msg,'err');
+      }
+    }
+
+    async function scanLoop(){
+      if(!active)return;
+      try{
+        let raw='';
+        if(detector){
+          const codes=await detector.detect(video);
+          if(codes&&codes[0])raw=String(codes[0].rawValue||'');
+        }else if(typeof jsQR==='function'&&video.videoWidth>0&&video.videoHeight>0){
+          const maxW=960;
+          const w=Math.min(maxW,video.videoWidth);
+          const h=Math.max(1,Math.round(video.videoHeight*(w/video.videoWidth)));
+          const canvas=document.createElement('canvas');
+          canvas.width=w;canvas.height=h;
+          const ctx=canvas.getContext('2d',{willReadFrequently:true});
+          ctx.drawImage(video,0,0,w,h);
+          const img=ctx.getImageData(0,0,w,h);
+          const code=jsQR(img.data,w,h,{inversionAttempts:'attemptBoth'});
+          if(code)raw=String(code.data||'');
+        }
+        if(raw){sendResult(raw);return;}
+      }catch(_){}
+      timer=setTimeout(scanLoop,120);
+    }
+
+    window.addEventListener('pagehide',stopCamera);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera();});
+    start();
+  </script>
+</body>
+</html>
