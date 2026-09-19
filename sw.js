@@ -1,4 +1,4 @@
-const CACHE='kovarna-rozvozce-v3';
+const CACHE='kovarna-rozvozce-v4';
 const STATIC=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png','./jsqr.js'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).then(()=>self.skipWaiting()));

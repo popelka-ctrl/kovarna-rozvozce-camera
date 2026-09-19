@@ -82,7 +82,7 @@
     const layer=document.getElementById('scannerLayer');
     const video=document.getElementById('video');
     const scanStatus=document.getElementById('scanStatus');
-    let deferredInstall=null,stream=null,timer=null,active=false,detector=null,currentNonce='';
+    let deferredInstall=null,stream=null,timer=null,active=false,detector=null,currentNonce='',deliveryWindow=null,deliveryOrigin='';
 
     function standalone(){
       return !!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
@@ -128,7 +128,10 @@
         try{if(window.opener)window.opener.postMessage(payload,'*');}catch(_){}
         setTimeout(()=>window.close(),300);return;
       }
-      try{frame.contentWindow.postMessage(payload,'*');}catch(_){}
+      try{
+        if(deliveryWindow)deliveryWindow.postMessage(payload,deliveryOrigin||'*');
+        else frame.contentWindow.postMessage(payload,'*');
+      }catch(_){}
       setTimeout(()=>{layer.classList.remove('show');layer.setAttribute('aria-hidden','true');},250);
     }
     async function scanLoop(){
@@ -150,10 +153,21 @@
       timer=setTimeout(scanLoop,120);
     }
 
+    function isAppsScriptOrigin_(origin){
+      const s=String(origin||'');
+      return s==='https://script.google.com'||/^https:\/\/[^/]*googleusercontent\.com$/i.test(s);
+    }
     window.addEventListener('message',event=>{
-      if(event.source!==frame.contentWindow)return;
       const data=event.data||{};
-      if(data.type==='KOVARNA_OPEN_SCANNER')openScanner(data.nonce);
+      if(data.type==='KOVARNA_DELIVERY_READY'&&isAppsScriptOrigin_(event.origin)){
+        deliveryWindow=event.source||null;
+        deliveryOrigin=String(event.origin||'');
+        try{deliveryWindow&&deliveryWindow.postMessage({type:'KOVARNA_PWA_READY',nonce:String(data.nonce||'')},deliveryOrigin||'*');}catch(_){}
+        return;
+      }
+      if(data.type==='KOVARNA_OPEN_SCANNER'&&deliveryWindow&&event.source===deliveryWindow&&isAppsScriptOrigin_(event.origin)){
+        openScanner(data.nonce);
+      }
     });
 
     window.addEventListener('beforeinstallprompt',event=>{
