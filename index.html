@@ -3,107 +3,134 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#111111">
-  <title>Kovárna – QR skener</title>
+  <meta name="theme-color" content="#171313">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kovárna">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <title>Kovárna – Rozvozce</title>
   <style>
-    :root{font-family:Arial,sans-serif;background:#000;color:#fff}
+    :root{font-family:Arial,sans-serif;background:#171313;color:#fff}
     *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
-    body{display:flex;flex-direction:column}
-    .top{height:72px;min-height:72px;padding:12px 16px;background:#241b1b;border-bottom:1px solid #4e3838;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .title{font-size:22px;font-weight:900;line-height:1.05}
-    .sub{font-size:13px;font-weight:800;color:#ff6868;margin-top:3px}
-    .close{width:auto;min-width:78px;height:48px;border:0;border-radius:12px;background:#4b3a34;color:#fff;font-size:18px;font-weight:900}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#171313}
+    body{display:grid;grid-template-rows:auto 1fr}
+    body.standalone{grid-template-rows:1fr}
+    #installBar{display:none;min-height:58px;padding:8px 10px;background:#241b1b;border-bottom:1px solid #4e3838;align-items:center;gap:10px}
+    #installBar.show{display:flex}
+    #installBar strong{flex:1;font-size:15px;line-height:1.15}
+    #installBtn{border:0;border-radius:12px;background:#e87b28;color:#fff;font-size:16px;font-weight:900;padding:12px 14px;white-space:nowrap}
+    #deliveryFrame{width:100%;height:100%;border:0;background:#171313}
+    #scannerLayer{position:fixed;inset:0;z-index:50;background:#000;display:none;flex-direction:column}
+    #scannerLayer.show{display:flex}
+    .scanTop{height:74px;min-height:74px;padding:12px 14px;background:#241b1b;border-bottom:1px solid #4e3838;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .scanTitle{font-size:22px;font-weight:900;line-height:1.05}
+    .scanSub{font-size:13px;font-weight:900;color:#ff6868;margin-top:3px}
+    .close{width:auto;min-width:92px;height:50px;border:0;border-radius:12px;background:#4b3a34;color:#fff;font-size:18px;font-weight:900}
     .stage{position:relative;flex:1;min-height:0;background:#000}
     video{width:100%;height:100%;object-fit:cover;background:#000}
-    .shade{position:absolute;inset:0;pointer-events:none}
-    .target{position:absolute;left:50%;top:50%;width:min(76vw,420px);aspect-ratio:1;transform:translate(-50%,-50%);border:5px solid #fff;border-radius:24px;box-shadow:0 0 0 9999px #0005}
-    .status{position:absolute;left:14px;right:14px;bottom:18px;z-index:2;background:#171313e8;border:1px solid #5d4740;border-radius:14px;padding:14px 16px;font-size:18px;font-weight:800;text-align:center}
-    .ok{background:#214f31e8}.err{background:#6f2626e8}
-    .hidden{display:none!important}
+    .target{position:absolute;left:50%;top:50%;width:min(76vw,430px);aspect-ratio:1;transform:translate(-50%,-50%);border:5px solid #fff;border-radius:24px;box-shadow:0 0 0 9999px #0005;pointer-events:none}
+    #scanStatus{position:absolute;left:14px;right:14px;bottom:max(18px,env(safe-area-inset-bottom));z-index:3;background:#171313e8;border:1px solid #5d4740;border-radius:14px;padding:14px 16px;font-size:18px;font-weight:800;text-align:center}
+    #scanStatus.ok{background:#214f31ed}#scanStatus.err{background:#6f2626ed}
+    #installHelp{position:fixed;inset:0;z-index:80;background:#000b;display:none;align-items:center;justify-content:center;padding:22px}
+    #installHelp.show{display:flex}
+    .helpCard{max-width:520px;background:#282020;border:1px solid #5d4740;border-radius:20px;padding:24px}
+    .helpCard h2{font-size:28px;margin:0 0 12px}.helpCard p{font-size:19px;line-height:1.4;margin:8px 0}
+    .helpCard button{width:100%;min-height:62px;margin-top:18px;border:0;border-radius:14px;background:#e87b28;color:#fff;font-size:20px;font-weight:900}
   </style>
 </head>
 <body>
-  <header class="top">
-    <div><div class="title">KOVÁRNA • QR SKENER</div><div class="sub">ROZVOZCE</div></div>
-    <button class="close" onclick="closeScanner()">ZAVŘÍT</button>
-  </header>
-  <main class="stage">
-    <video id="video" playsinline muted></video>
-    <div class="shade"><div class="target"></div></div>
-    <div id="status" class="status">Spouštím fotoaparát…</div>
-  </main>
+  <div id="installBar">
+    <strong>Přidejte si Kovárnu na plochu telefonu.</strong>
+    <button id="installBtn">PŘIDAT IKONU</button>
+  </div>
+
+  <iframe id="deliveryFrame" title="Kovárna – Rozvozce" allow="clipboard-read; clipboard-write"></iframe>
+
+  <section id="scannerLayer" aria-hidden="true">
+    <header class="scanTop">
+      <div><div class="scanTitle">KOVÁRNA • QR SKENER</div><div class="scanSub">ŽIVÉ NAČTENÍ – NIC SE NEFOTÍ ANI NEUKLÁDÁ</div></div>
+      <button class="close" onclick="closeScanner()">ZAVŘÍT</button>
+    </header>
+    <main class="stage">
+      <video id="video" playsinline muted></video>
+      <div class="target"></div>
+      <div id="scanStatus">Spouštím fotoaparát…</div>
+    </main>
+  </section>
+
+  <section id="installHelp">
+    <div class="helpCard">
+      <h2>Ikona na ploše</h2>
+      <p id="installHelpText"></p>
+      <button onclick="hideInstallHelp()">ROZUMÍM</button>
+    </div>
+  </section>
+
   <script src="jsqr.js"></script>
   <script>
-    const EXPECTED_OPENER_ORIGIN='https://script.google.com';
+    const TEST_APP='https://script.google.com/macros/s/AKfycbzwD4k2UFvuYvKWQy7WhokfpxDnbLI61yUQx8Zz0dByNn4KnS3asEAHpE25bhVqgRQOSg/exec';
+    const PROD_APP='https://script.google.com/macros/s/AKfycbzx4rppcIBwBzxT76zAvuTOxiKpY8M1VRhCGBDRvkjtWx2QiOq6o6PTNWhB169RzFA5Pw/exec';
     const params=new URLSearchParams(location.search);
-    const NONCE=String(params.get('nonce')||'');
-    let stream=null, active=true, timer=null, detector=null;
+    const directScanner=params.get('scanner')==='1';
+    const forcedEnv=String(params.get('env')||'').toLowerCase();
+    if(forcedEnv==='test'||forcedEnv==='prod')localStorage.setItem('kovarna_delivery_env',forcedEnv);
+    const appEnv=forcedEnv||localStorage.getItem('kovarna_delivery_env')||'prod';
+    const APP_URL=(appEnv==='test'?TEST_APP:PROD_APP)+'?delivery=1&pwa=1';
+    const frame=document.getElementById('deliveryFrame');
+    const layer=document.getElementById('scannerLayer');
     const video=document.getElementById('video');
-    const status=document.getElementById('status');
+    const scanStatus=document.getElementById('scanStatus');
+    let deferredInstall=null,stream=null,timer=null,active=false,detector=null,currentNonce='';
 
-    function setStatus(text,kind){
-      status.textContent=text;
-      status.className='status'+(kind?' '+kind:'');
+    function standalone(){
+      return !!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
+    }
+    function ios(){
+      return /iphone|ipad|ipod/i.test(navigator.userAgent);
+    }
+    function setScanStatus(text,kind){
+      scanStatus.textContent=text;scanStatus.className=kind||'';
     }
     function stopCamera(){
-      active=false;
-      if(timer)clearTimeout(timer);
-      timer=null;
+      active=false;if(timer)clearTimeout(timer);timer=null;
       if(stream)stream.getTracks().forEach(t=>t.stop());
-      stream=null;
+      stream=null;video.srcObject=null;
     }
     function closeScanner(){
-      stopCamera();
-      window.close();
+      stopCamera();layer.classList.remove('show');layer.setAttribute('aria-hidden','true');
+      if(directScanner)window.close();
     }
-    function sendResult(raw){
-      if(!active)return;
-      stopCamera();
-      setStatus('QR načteno. Ověřuji poukaz…','ok');
-      try{
-        if(window.opener){
-          window.opener.postMessage({
-            type:'KOVARNA_DELIVERY_QR',
-            nonce:NONCE,
-            raw:String(raw||'')
-          },'*');
-        }
-      }catch(_){}
-      setTimeout(()=>window.close(),350);
-    }
-
-    async function start(){
-      if(!NONCE){setStatus('Chybí bezpečnostní parametr skeneru.','err');return;}
+    async function openScanner(nonce){
+      currentNonce=String(nonce||'');
+      layer.classList.add('show');layer.setAttribute('aria-hidden','false');
+      setScanStatus('Spouštím fotoaparát…','');
       if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-        setStatus('Tento prohlížeč nepovoluje živou kameru.','err');return;
+        setScanStatus('Tento prohlížeč nepovoluje živou kameru.','err');return;
       }
       try{
-        stream=await navigator.mediaDevices.getUserMedia({
-          video:{
-            facingMode:{ideal:'environment'},
-            width:{ideal:1920},
-            height:{ideal:1080}
-          },
-          audio:false
-        });
-        video.srcObject=stream;
-        await video.play();
-        if(typeof BarcodeDetector!=='undefined'){
-          try{detector=new BarcodeDetector({formats:['qr_code']});}catch(_){detector=null;}
-        }
-        setStatus('Namiřte fotoaparát na QR kód.');
-        active=true;
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+        video.srcObject=stream;await video.play();active=true;
+        if(typeof BarcodeDetector!=='undefined'){try{detector=new BarcodeDetector({formats:['qr_code']});}catch(_){detector=null;}}
+        setScanStatus('Namiřte fotoaparát na QR poukazu.','');
         scanLoop();
       }catch(err){
-        const name=String(err&&err.name||'');
-        const msg=name==='NotAllowedError'
-          ? 'Povolte tomuto webu přístup k fotoaparátu.'
-          : 'Fotoaparát se nepodařilo spustit.';
-        setStatus(msg,'err');
+        const denied=String(err&&err.name||'')==='NotAllowedError';
+        setScanStatus(denied?'Povolte této aplikaci přístup k fotoaparátu.':'Fotoaparát se nepodařilo spustit.','err');
       }
     }
-
+    function deliverRaw(raw){
+      raw=String(raw||'').trim();if(!raw)return;
+      stopCamera();setScanStatus('QR načteno. Ověřuji poukaz…','ok');
+      const payload={type:'KOVARNA_DELIVERY_QR',nonce:currentNonce,raw};
+      if(directScanner){
+        try{if(window.opener)window.opener.postMessage(payload,'*');}catch(_){}
+        setTimeout(()=>window.close(),300);return;
+      }
+      try{frame.contentWindow.postMessage(payload,'*');}catch(_){}
+      setTimeout(()=>{layer.classList.remove('show');layer.setAttribute('aria-hidden','true');},250);
+    }
     async function scanLoop(){
       if(!active)return;
       try{
@@ -112,25 +139,66 @@
           const codes=await detector.detect(video);
           if(codes&&codes[0])raw=String(codes[0].rawValue||'');
         }else if(typeof jsQR==='function'&&video.videoWidth>0&&video.videoHeight>0){
-          const maxW=960;
-          const w=Math.min(maxW,video.videoWidth);
-          const h=Math.max(1,Math.round(video.videoHeight*(w/video.videoWidth)));
-          const canvas=document.createElement('canvas');
-          canvas.width=w;canvas.height=h;
-          const ctx=canvas.getContext('2d',{willReadFrequently:true});
-          ctx.drawImage(video,0,0,w,h);
-          const img=ctx.getImageData(0,0,w,h);
-          const code=jsQR(img.data,w,h,{inversionAttempts:'attemptBoth'});
+          const w=Math.min(960,video.videoWidth),h=Math.max(1,Math.round(video.videoHeight*(w/video.videoWidth)));
+          const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+          const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(video,0,0,w,h);
+          const img=ctx.getImageData(0,0,w,h),code=jsQR(img.data,w,h,{inversionAttempts:'attemptBoth'});
           if(code)raw=String(code.data||'');
         }
-        if(raw){sendResult(raw);return;}
+        if(raw){deliverRaw(raw);return;}
       }catch(_){}
       timer=setTimeout(scanLoop,120);
     }
 
+    window.addEventListener('message',event=>{
+      if(event.source!==frame.contentWindow)return;
+      const data=event.data||{};
+      if(data.type==='KOVARNA_OPEN_SCANNER')openScanner(data.nonce);
+    });
+
+    window.addEventListener('beforeinstallprompt',event=>{
+      event.preventDefault();deferredInstall=event;
+      if(!standalone())document.getElementById('installBar').classList.add('show');
+    });
+    window.addEventListener('appinstalled',()=>{
+      deferredInstall=null;document.getElementById('installBar').classList.remove('show');
+    });
+    document.getElementById('installBtn').addEventListener('click',async()=>{
+      if(deferredInstall){
+        deferredInstall.prompt();
+        await deferredInstall.userChoice;
+        deferredInstall=null;
+        return;
+      }
+      const text=ios()
+        ? 'V Safari klepněte na Sdílet a zvolte „Přidat na plochu“. Potvrďte název Kovárna.'
+        : 'V nabídce prohlížeče zvolte „Přidat na plochu“ nebo „Nainstalovat aplikaci“.';
+      document.getElementById('installHelpText').textContent=text;
+      document.getElementById('installHelp').classList.add('show');
+    });
+    function hideInstallHelp(){document.getElementById('installHelp').classList.remove('show');}
+
+    if(standalone())document.body.classList.add('standalone');
+    else{
+      document.getElementById('installBar').classList.add('show');
+      document.getElementById('installHelpText').textContent=ios()
+        ? 'V Safari klepněte na Sdílet a zvolte „Přidat na plochu“.'
+        : 'Klepněte na PŘIDAT IKONU. Pokud se instalační dialog neukáže, použijte nabídku prohlížeče → Přidat na plochu / Nainstalovat aplikaci.';
+    }
+
+    if(directScanner){
+      document.getElementById('installBar').classList.remove('show');
+      frame.style.display='none';
+      openScanner(params.get('nonce')||'');
+    }else{
+      frame.src=APP_URL;
+    }
+
+    if('serviceWorker' in navigator&&!directScanner){
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
+    document.addEventListener('visibilitychange',()=>{if(document.hidden&&layer.classList.contains('show'))stopCamera();});
     window.addEventListener('pagehide',stopCamera);
-    document.addEventListener('visibilitychange',()=>{if(document.hidden)stopCamera();});
-    start();
   </script>
 </body>
 </html>
