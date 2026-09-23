@@ -15,7 +15,7 @@
     :root{font-family:Arial,sans-serif;background:#171313;color:#fff}
     *{box-sizing:border-box}
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#171313}
-    body{display:grid;grid-template-rows:auto 1fr}
+    body{display:grid;grid-template-rows:auto 1fr;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
     body.standalone{grid-template-rows:1fr}
     #installBar{display:none;min-height:58px;padding:8px 10px;background:#241b1b;border-bottom:1px solid #4e3838;align-items:center;gap:10px}
     #installBar.show{display:flex}
@@ -69,14 +69,16 @@
   </section>
 
   <script src="jsqr.js"></script>
+  <script src="identity-store.js?v=1.01.1-r2"></script>
   <script>
     const TEST_APP='https://script.google.com/macros/s/AKfycbzwD4k2UFvuYvKWQy7WhokfpxDnbLI61yUQx8Zz0dByNn4KnS3asEAHpE25bhVqgRQOSg/exec';
     const PROD_APP='https://script.google.com/macros/s/AKfycbzx4rppcIBwBzxT76zAvuTOxiKpY8M1VRhCGBDRvkjtWx2QiOq6o6PTNWhB169RzFA5Pw/exec';
     const params=new URLSearchParams(location.search);
     const directScanner=params.get('scanner')==='1';
     const forcedEnv=String(params.get('env')||'').toLowerCase();
-    if(forcedEnv==='test'||forcedEnv==='prod')localStorage.setItem('kovarna_delivery_env',forcedEnv);
-    const appEnv=forcedEnv||localStorage.getItem('kovarna_delivery_env')||'prod';
+    let storedEnv='prod';
+    try{storedEnv=localStorage.getItem('kovarna_delivery_env')||'prod';if(['test','prod'].includes(forcedEnv))localStorage.setItem('kovarna_delivery_env',forcedEnv);}catch(_){}
+    const appEnv=['test','prod'].includes(forcedEnv)?forcedEnv:(storedEnv==='test'?'test':'prod');
     const APP_URL=(appEnv==='test'?TEST_APP:PROD_APP)+'?delivery=1&pwa=1';
     const frame=document.getElementById('deliveryFrame');
     const layer=document.getElementById('scannerLayer');
@@ -153,21 +155,13 @@
       timer=setTimeout(scanLoop,120);
     }
 
-    function isAppsScriptOrigin_(origin){
-      const s=String(origin||'');
-      return s==='https://script.google.com'||/^https:\/\/[^/]*googleusercontent\.com$/i.test(s);
-    }
+    const identityBridge=window.KovarnaIdentityBridge&&window.KovarnaIdentityBridge.install({
+      frame,environment:appEnv.toUpperCase(),
+      onReady(source,origin){deliveryWindow=source;deliveryOrigin=origin;}
+    });
     window.addEventListener('message',event=>{
       const data=event.data||{};
-      if(data.type==='KOVARNA_DELIVERY_READY'&&isAppsScriptOrigin_(event.origin)){
-        deliveryWindow=event.source||null;
-        deliveryOrigin=String(event.origin||'');
-        try{deliveryWindow&&deliveryWindow.postMessage({type:'KOVARNA_PWA_READY',nonce:String(data.nonce||'')},deliveryOrigin||'*');}catch(_){}
-        return;
-      }
-      if(data.type==='KOVARNA_OPEN_SCANNER'&&deliveryWindow&&event.source===deliveryWindow&&isAppsScriptOrigin_(event.origin)){
-        openScanner(data.nonce);
-      }
+      if(data.type==='KOVARNA_OPEN_SCANNER'&&identityBridge&&identityBridge.owns(event))openScanner(data.nonce);
     });
 
     window.addEventListener('beforeinstallprompt',event=>{
