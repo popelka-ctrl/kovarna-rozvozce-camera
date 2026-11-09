@@ -1,5 +1,5 @@
-const CACHE='kovarna-rozvozce-v6';
-const STATIC=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png','./jsqr.js','./identity-store.js?v=1.01.1-r2'];
+const CACHE='kovarna-rozvozce-v7';
+const STATIC=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png','./jsqr.js','./identity-store.js?v=1.04.15-s1','./support.js?v=1.04.15-r1'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).then(()=>self.skipWaiting()));
 });
@@ -14,3 +14,4 @@ self.addEventListener('fetch',event=>{
   }
   event.respondWith(caches.match(req).then(hit=>hit||fetch(req)));
 });
+

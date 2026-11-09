@@ -1,7 +1,7 @@
 /* Credentials belong to the top-level PWA, never to transient Google frames. */
 (function(root){
   'use strict';
-  const VERSION='1.01.1-r2',PROTOCOL=2;
+  const VERSION='1.04.15-s1',PROTOCOL=2;
   function install(options){
     const env=options.environment,frame=options.frame;
     if(!['TEST','PROD'].includes(env))throw Error('Invalid environment');
@@ -43,10 +43,11 @@
         if(peer!==event.source||nonce!==d.nonce){channel=uuid();peer=event.source;origin=event.origin;nonce=d.nonce;}
         supportsStorage=d.protocol===PROTOCOL&&d.environment===env;
         options.onReady(peer,origin);
-        reply(event,{type:'KOVARNA_PWA_READY',protocol:PROTOCOL,environment:env,shellVersion:VERSION,nonce,channel});
+        reply(event,{type:'KOVARNA_PWA_READY',protocol:PROTOCOL,environment:env,shellVersion:VERSION,supportVersion:root.KovarnaSupport?root.KovarnaSupport.version:'',nonce,channel});
         return;
       }
-      if(d.type!=='KOVARNA_STORAGE_REQUEST'||!owns(event)||!supportsStorage||d.protocol!==PROTOCOL||d.environment!==env||d.nonce!==nonce||d.channel!==channel)return;
+      if(!['KOVARNA_STORAGE_REQUEST','KOVARNA_SUPPORT'].includes(d.type)||!owns(event)||!supportsStorage||d.protocol!==PROTOCOL||d.environment!==env||d.nonce!==nonce||d.channel!==channel)return;
+      if(d.type==='KOVARNA_SUPPORT'){try{if(options.onSupport)options.onSupport(d.report);}catch(_){}return;}
       if(typeof d.requestId!=='string'||!/^[a-zA-Z0-9_-]{16,100}$/.test(d.requestId))return;
       const answer={type:'KOVARNA_STORAGE_RESPONSE',protocol:PROTOCOL,environment:env,nonce,channel,requestId:d.requestId,ok:false,storage:storageInfo()};
       try{
@@ -56,7 +57,7 @@
           if(!valid(d.record))throw Error('STORAGE_INVALID');
           const old=read();
           if((old?old.revision:null)!==d.expectedRevision)throw Error('STORAGE_CONFLICT');
-          const record={schema:2,environment:env,clientId:d.record.clientId,token:d.record.token,revision:uuid(),savedAt:new Date().toISOString()};
+          const record={schema:2,environment:env,clientId:d.record.clientId,token:d.record.token,registrationPending:d.record.registrationPending===true,revision:uuid(),savedAt:new Date().toISOString()};
           const raw=JSON.stringify(record);root.localStorage.setItem(key,raw);
           if(root.localStorage.getItem(key)!==raw)throw Error('STORAGE_UNAVAILABLE');
           Object.assign(answer,{ok:true,revision:record.revision});
@@ -69,7 +70,8 @@
     try{const s=root.navigator.storage;if(s&&s.persisted)s.persisted().then(value=>{
       persisted=!!value;if(!value&&s.persist)return s.persist().then(granted=>{persisted=!!granted;});
     }).catch(()=>{});}catch(_){}
-    return {owns,version:VERSION};
+    return {owns,version:VERSION,sendSupportAction(action){if(peer)peer.postMessage({type:'KOVARNA_SUPPORT_ACTION',protocol:PROTOCOL,environment:env,nonce,channel,action},origin);}};
   }
   root.KovarnaIdentityBridge={install,version:VERSION};
 })(window);
+

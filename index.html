@@ -69,7 +69,8 @@
   </section>
 
   <script src="jsqr.js"></script>
-  <script src="identity-store.js?v=1.01.1-r2"></script>
+  <script src="support.js?v=1.04.15-r1"></script>
+  <script src="identity-store.js?v=1.04.15-s1"></script>
   <script>
     const TEST_APP='https://script.google.com/macros/s/AKfycbzwD4k2UFvuYvKWQy7WhokfpxDnbLI61yUQx8Zz0dByNn4KnS3asEAHpE25bhVqgRQOSg/exec';
     const PROD_APP='https://script.google.com/macros/s/AKfycbzx4rppcIBwBzxT76zAvuTOxiKpY8M1VRhCGBDRvkjtWx2QiOq6o6PTNWhB169RzFA5Pw/exec';
@@ -93,7 +94,7 @@
       return /iphone|ipad|ipod/i.test(navigator.userAgent);
     }
     function setScanStatus(text,kind){
-      scanStatus.textContent=text;scanStatus.className=kind||'';
+      scanStatus.textContent=text;scanStatus.className=kind||'';if(kind==='err'&&typeof support!=='undefined')support.error({code:'CAMERA_UNAVAILABLE',title:'Fotoaparát není dostupný',message:text,actionLabel:'ZAVŘÍT',action:'close'});
     }
     function stopCamera(){
       active=false;if(timer)clearTimeout(timer);timer=null;
@@ -155,14 +156,29 @@
       timer=setTimeout(scanLoop,120);
     }
 
+    let supportReady=false;
+    const support=window.KovarnaSupport.create({environment:appEnv.toUpperCase(),source:'SHELL',host:true,onDismiss(){if(supportReady)identityBridge.sendSupportAction('dismiss');},onAction(action){
+      if(action==='close')return;
+      if(!supportReady||action==='reload'){frame.src=APP_URL+'&reload='+Date.now();return;}
+      identityBridge.sendSupportAction(action);
+    }});
+    support.update({shellVersion:'1.04.15-s1',standalone:standalone(),screen:directScanner?'scanner':'boot'});
     const identityBridge=window.KovarnaIdentityBridge&&window.KovarnaIdentityBridge.install({
       frame,environment:appEnv.toUpperCase(),
-      onReady(source,origin){deliveryWindow=source;deliveryOrigin=origin;}
+      onReady(source,origin){deliveryWindow=source;deliveryOrigin=origin;supportReady=true;support.record('BRIDGE','READY');},
+      onSupport(report){
+        if(!report||typeof report!=='object')return;
+        if(report.kind==='event'&&report.event){support.importEvent(report.event);if(report.event.action==='CHECK'&&report.event.result==='READY')support.recovered();}
+        else if(report.kind==='state')support.update(report.state);
+        else if(report.kind==='error'&&report.problem)support.error(report.problem);
+      }
     });
     window.addEventListener('message',event=>{
       const data=event.data||{};
       if(data.type==='KOVARNA_OPEN_SCANNER'&&identityBridge&&identityBridge.owns(event))openScanner(data.nonce);
     });
+
+    if(!directScanner)setTimeout(()=>{if(!supportReady)support.error({code:'APP_LOAD_TIMEOUT',title:'Aplikace se nenačetla',message:'Ověřte připojení k internetu. Uložte hlášení chyby a zkuste aplikaci znovu načíst.',actionLabel:'ZNOVU NAČÍST',action:'reload'});},30000);
 
     window.addEventListener('beforeinstallprompt',event=>{
       event.preventDefault();deferredInstall=event;
@@ -210,3 +226,4 @@
   </script>
 </body>
 </html>
+
